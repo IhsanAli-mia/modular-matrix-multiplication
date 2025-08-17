@@ -1,0 +1,12 @@
+.matrix-grid table td {
+    min-width: 64px;
+    text-align: center;
+  }
+  
+  .matrix-grid input[type="number"] {
+    text-align: center;
+  }
+  
+  .card-title {
+    margin-bottom: 0.75rem;
+  }
