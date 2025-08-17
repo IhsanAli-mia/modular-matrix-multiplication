@@ -1,13 +1,11 @@
 from __future__ import annotations
 from flask import Flask, render_template, request, jsonify
-from typing import List
+from typing import List, Optional
 
 app = Flask(__name__)
 
 
-def multiply_mod(A: List[List[int]], B: List[List[int]], modulus: int) -> List[List[int]]:
-    if modulus <= 0:
-        raise ValueError("Modulus must be a positive integer.")
+def multiply(A: List[List[int]], B: List[List[int]], modulus: Optional[int] = None) -> List[List[int]]:
     if not A or not B or not A[0] or not B[0]:
         raise ValueError("Matrices must be non-empty.")
 
@@ -34,14 +32,19 @@ def multiply_mod(A: List[List[int]], B: List[List[int]], modulus: int) -> List[L
 
     result = [[0 for _ in range(p)] for _ in range(m)]
 
-    # Compute (A x B) mod modulus
-    mod = modulus
+    # Compute (A x B) (with optional modulus)
     for i in range(m):
         for k in range(n):
-            a_ik = A[i][k] % mod
+            a_ik = A[i][k]
+            if modulus:
+                a_ik %= modulus
             if a_ik:
                 for j in range(p):
-                    result[i][j] = (result[i][j] + a_ik * (B[k][j] % mod)) % mod
+                    b_kj = B[k][j]
+                    if modulus:
+                        b_kj %= modulus
+                    val = result[i][j] + a_ik * b_kj
+                    result[i][j] = val % modulus if modulus else val
 
     return result
 
@@ -52,7 +55,7 @@ def index():
 
 
 @app.route("/multiply", methods=["POST"])
-def multiply():
+def multiply_route():
     try:
         payload = request.get_json(silent=True)
         if payload is None:
@@ -62,10 +65,10 @@ def multiply():
         B = payload.get("B")
         modulus = payload.get("modulus")
 
-        if not isinstance(modulus, int):
+        if modulus is not None and not isinstance(modulus, int):
             return jsonify({"ok": False, "error": "Modulus must be an integer."}), 400
-        if modulus <= 0:
-            return jsonify({"ok": False, "error": "Modulus must be a positive integer."}), 400
+        if modulus is not None and modulus <= 0:
+            return jsonify({"ok": False, "error": "Modulus must be a positive integer if specified."}), 400
 
         # Ensure matrices are lists of lists of ints
         def normalize_matrix(M, name):
@@ -77,7 +80,7 @@ def multiply():
                     raise ValueError(f"{name} row {r} must be a non-empty list.")
                 norm_row = []
                 for c, val in enumerate(row):
-                    if isinstance(val, bool):  # prevent bools being treated as ints
+                    if isinstance(val, bool):
                         val = int(val)
                     if not isinstance(val, int):
                         raise ValueError(f"{name} contains non-integer at ({r},{c}).")
@@ -88,7 +91,7 @@ def multiply():
         A = normalize_matrix(A, "A")
         B = normalize_matrix(B, "B")
 
-        result = multiply_mod(A, B, modulus)
+        result = multiply(A, B, modulus)
         return jsonify({"ok": True, "result": result})
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
